@@ -6,7 +6,7 @@ from an already opened Playwright page.
 """
 
 # Import helper functions
-from app.utils.helpers import safe_attribute, safe_text
+from app.utils.helpers import safe_attribute
 
 
 def extract_metadata(page):
@@ -29,11 +29,6 @@ def extract_metadata(page):
         "meta_description": safe_attribute(
             page.locator("meta[name='description']"),
             "content"
-        ),
-
-        # First H1 tag
-        "h1": safe_text(
-            page.locator("h1")
         ),
 
         # Canonical URL
