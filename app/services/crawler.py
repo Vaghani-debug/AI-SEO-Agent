@@ -1,43 +1,199 @@
+# Import required modules
+import time
+
+# Import Playwright synchronous API
 from playwright.sync_api import sync_playwright
+
+# Import helper functions
+from app.utils.helpers import normalize_url, safe_attribute, safe_text
+
+# Import application logger
+from app.utils.logger import logger
 
 
 def audit_page(url: str):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+    """
+    Crawl a webpage and collect basic SEO information.
 
-        page.goto(url, wait_until="networkidle")
+    Parameters:
+        url (str): Website URL entered by the user.
 
-        title = page.title()
+    Returns:
+        dict: Structured SEO audit response.
+    """
 
-        meta_description = page.locator("meta[name='description']").get_attribute("content")
+    # Normalize the URL (adds https:// if missing)
+    url = normalize_url(url)
 
-        h1 = page.locator("h1").first.text_content() if page.locator("h1").count() > 0 else None
+    # Record crawl start time
+    start_time = time.time()
 
-        canonical = page.locator("link[rel='canonical']").get_attribute("href")
+    try:
 
-        robots = page.locator("meta[name='robots']").get_attribute("content")
+        # Start Playwright
+        with sync_playwright() as p:
 
-        images = page.locator("img")
+            # Launch Chromium browser in headless mode
+            browser = p.chromium.launch(headless=True)
 
-        image_count = images.count()
+            # Create browser context
+            # Custom User-Agent reduces the chance of websites blocking Playwright
+            context = browser.new_context(
+                ignore_https_errors=True,
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/137.0 Safari/537.36"
+                )
+            )
 
-        images_missing_alt = 0
+            # Open a new browser page
+            page = context.new_page()
 
-        for i in range(image_count):
-            alt = images.nth(i).get_attribute("alt")
-            if not alt:
-                images_missing_alt += 1
+            # Set maximum wait time for all Playwright operations
+            page.set_default_timeout(30000)
 
-        browser.close()
+            # -------------------------
+            # Navigate to the website
+            # -------------------------
+
+            try:
+
+                # Load the webpage
+                response = page.goto(
+                    url,
+                    wait_until="domcontentloaded",
+                    timeout=30000
+                )
+
+            except Exception:
+
+                logger.exception(f"Navigation failed for {url}")
+
+                return {
+                    "success": False,
+                    "message": "Website could not be reached.",
+                    "url": url
+                }
+
+            # -------------------------
+            # Collect crawl information
+            # -------------------------
+
+            # HTTP status code (200, 301, 404, etc.)
+            status_code = response.status if response else None
+
+            # Final URL after redirects
+            final_url = page.url
+
+            # Calculate crawl duration
+            crawl_time = round(time.time() - start_time, 2)
+
+            # -------------------------
+            # Basic SEO Information
+            # -------------------------
+
+            title = page.title()
+
+            meta_description = safe_attribute(
+                page.locator("meta[name='description']"),
+                "content"
+            )
+
+            h1 = safe_text(
+                page.locator("h1")
+            )
+
+            canonical = safe_attribute(
+                page.locator("link[rel='canonical']"),
+                "href"
+            )
+
+            robots = safe_attribute(
+                page.locator("meta[name='robots']"),
+                "content"
+            )
+
+            # -------------------------
+            # Image SEO
+            # -------------------------
+
+            images = page.locator("img")
+
+            image_count = images.count()
+
+            images_missing_alt = 0
+
+            # Count images without ALT text
+            for i in range(image_count):
+
+                alt = images.nth(i).get_attribute("alt")
+
+                if not alt or alt.strip() == "":
+                    images_missing_alt += 1
+
+            # -------------------------
+            # Write successful crawl to log
+            # -------------------------
+
+            logger.info(
+                f"SEO Audit Completed | "
+                f"URL={url} | "
+                f"Status={status_code} | "
+                f"Time={crawl_time}s"
+            )
+
+            # -------------------------
+            # Return structured response
+            # -------------------------
+
+            return {
+
+                "success": True,
+
+                "message": "SEO audit completed successfully.",
+
+                "execution_time": crawl_time,
+
+                "data": {
+
+                    "url": url,
+
+                    "final_url": final_url,
+
+                    "http_status": status_code,
+
+                    "title": title,
+
+                    "meta_description": meta_description,
+
+                    "h1": h1,
+
+                    "canonical": canonical,
+
+                    "robots": robots,
+
+                    "image_count": image_count,
+
+                    "images_missing_alt": images_missing_alt
+
+                }
+
+            }
+
+    except Exception as e:
+
+        # Log unexpected errors with full traceback
+        logger.exception(f"SEO audit failed for {url}")
 
         return {
+
+            "success": False,
+
+            "message": "Unexpected error during SEO audit.",
+
             "url": url,
-            "title": title,
-            "meta_description": meta_description,
-            "h1": h1,
-            "canonical": canonical,
-            "robots": robots,
-            "image_count": image_count,
-            "images_missing_alt": images_missing_alt,
+
+            "error": str(e)
+
         }
