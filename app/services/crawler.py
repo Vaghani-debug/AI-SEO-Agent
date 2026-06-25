@@ -1,6 +1,7 @@
 # Import required modules
 import time
 from app.services.metadata import extract_metadata
+from app.services.images import extract_images
 
 # Import Playwright synchronous API
 from playwright.sync_api import sync_playwright
@@ -99,20 +100,10 @@ def audit_page(url: str):
             # -------------------------
             # Image SEO
             # -------------------------
+            # Extract image SEO information using the images service
+            image_data = extract_images(page)
 
-            images = page.locator("img")
-
-            image_count = images.count()
-
-            images_missing_alt = 0
-
-            # Count images without ALT text
-            for i in range(image_count):
-
-                alt = images.nth(i).get_attribute("alt")
-
-                if not alt or alt.strip() == "":
-                    images_missing_alt += 1
+            image_count = image_data.get("image_count", 0)
 
             # -------------------------
             # Write successful crawl to log
@@ -147,9 +138,7 @@ def audit_page(url: str):
 
                     "metadata": metadata,
 
-                    "image_count": image_count,
-
-                    "images_missing_alt": images_missing_alt
+                    "image_data": image_data
 
                 }
 
