@@ -3,6 +3,7 @@ import time
 from app.services.metadata import extract_metadata
 from app.services.images import extract_images
 from app.services.headings import extract_headings
+from app.services.links import extract_links
 
 # Import Playwright synchronous API
 from playwright.sync_api import sync_playwright
@@ -99,6 +100,8 @@ def audit_page(url: str):
             metadata = extract_metadata(page)
             # Extract heading information using the headings service
             heading_data = extract_headings(page)
+
+            link_data = extract_links(page)
                     
             # -------------------------
             # Image SEO
@@ -143,7 +146,9 @@ def audit_page(url: str):
 
                     "heading_data": heading_data,
 
-                    "image_data": image_data
+                    "image_data": image_data,
+
+                    "link_data": link_data
 
                 }
 
