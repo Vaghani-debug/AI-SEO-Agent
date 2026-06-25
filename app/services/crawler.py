@@ -1,5 +1,6 @@
 # Import required modules
 import time
+
 from app.services.metadata import extract_metadata
 from app.services.images import extract_images
 from app.services.headings import extract_headings
@@ -9,10 +10,13 @@ from app.services.links import extract_links
 from playwright.sync_api import sync_playwright
 
 # Import helper functions
-from app.utils.helpers import normalize_url, safe_attribute, safe_text
+from app.utils.helpers import normalize_url
 
 # Import application logger
 from app.utils.logger import logger
+
+
+from app.evaluators.seo_evaluator import evaluate_seo
 
 
 def audit_page(url: str):
@@ -109,8 +113,6 @@ def audit_page(url: str):
             # Extract image SEO information using the images service
             image_data = extract_images(page)
 
-            image_count = image_data.get("image_count", 0)
-
             # -------------------------
             # Write successful crawl to log
             # -------------------------
@@ -122,6 +124,22 @@ def audit_page(url: str):
                 f"Time={crawl_time}s"
             )
 
+
+
+            # Combine extracted SEO data for evaluation
+            seo_data = {
+                "metadata": metadata,
+                "heading_data": heading_data,
+                "image_data": image_data,
+                "link_data": link_data,
+            }
+
+            # Evaluate collected SEO data
+            issues = evaluate_seo(seo_data)
+
+            high_issues = sum(1 for issue in issues if issue.get("severity") == "High")
+            medium_issues = sum(1 for issue in issues if issue.get("severity") == "Medium")
+            low_issues = sum(1 for issue in issues if issue.get("severity") == "Low")
             # -------------------------
             # Return structured response
             # -------------------------
@@ -132,24 +150,27 @@ def audit_page(url: str):
 
                 "message": "SEO audit completed successfully.",
 
-                "execution_time": crawl_time,
+                "execution_time_seconds": crawl_time,
 
                 "data": {
-
-                    "url": url,
-
-                    "final_url": final_url,
-
-                    "http_status": status_code,
-
-                    "metadata": metadata,
-
-                    "heading_data": heading_data,
-
-                    "image_data": image_data,
-
-                    "link_data": link_data
-
+                    "request": {
+                        "input_url": url,
+                        "final_url": final_url,
+                        "http_status": status_code,
+                    },
+                    "summary": {
+                        "total_issues": len(issues),
+                        "high": high_issues,
+                        "medium": medium_issues,
+                        "low": low_issues,
+                    },
+                    "findings": issues,
+                    "seo": {
+                        "metadata": metadata,
+                        "headings": heading_data,
+                        "images": image_data,
+                        "links": link_data,
+                    },
                 }
 
             }

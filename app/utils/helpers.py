@@ -17,7 +17,9 @@ def safe_text(locator):
         if locator.count() == 0:
             return None
 
-        return locator.first.text_content()
+        text = locator.first.text_content()
+        return text.strip() if text else None
+
 
     except Exception:
         return None
