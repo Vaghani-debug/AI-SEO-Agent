@@ -1,5 +1,6 @@
 # Import required modules
 import time
+from app.services.metadata import extract_metadata
 
 # Import Playwright synchronous API
 from playwright.sync_api import sync_playwright
@@ -92,28 +93,9 @@ def audit_page(url: str):
             # -------------------------
             # Basic SEO Information
             # -------------------------
-
-            title = page.title()
-
-            meta_description = safe_attribute(
-                page.locator("meta[name='description']"),
-                "content"
-            )
-
-            h1 = safe_text(
-                page.locator("h1")
-            )
-
-            canonical = safe_attribute(
-                page.locator("link[rel='canonical']"),
-                "href"
-            )
-
-            robots = safe_attribute(
-                page.locator("meta[name='robots']"),
-                "content"
-            )
-
+            # Extract metadata using the metadata service
+            metadata = extract_metadata(page)
+                    
             # -------------------------
             # Image SEO
             # -------------------------
@@ -163,15 +145,7 @@ def audit_page(url: str):
 
                     "http_status": status_code,
 
-                    "title": title,
-
-                    "meta_description": meta_description,
-
-                    "h1": h1,
-
-                    "canonical": canonical,
-
-                    "robots": robots,
+                    "metadata": metadata,
 
                     "image_count": image_count,
 
