@@ -40,8 +40,8 @@ def evaluate_seo(data):
         })
 
     # -----------------------------------
-# HTML Language
-# -----------------------------------
+    # HTML Language
+    # -----------------------------------
 
     language = data["technical"].get("language")
 
@@ -58,9 +58,10 @@ def evaluate_seo(data):
             "recommendation": "Add a valid lang attribute to the <html> element."
 
         })
-        # -----------------------------------
-# Mobile Viewport
-# -----------------------------------
+
+    # -----------------------------------
+    # Mobile Viewport
+    # -----------------------------------
 
     viewport = data["technical"].get("viewport")
 
@@ -77,9 +78,10 @@ def evaluate_seo(data):
             "recommendation": "Add a responsive viewport meta tag."
 
         })
-        # -----------------------------------
-# Charset
-# -----------------------------------
+
+    # -----------------------------------
+    # Charset
+    # -----------------------------------
 
     charset = data["technical"].get("charset")
 
@@ -96,9 +98,10 @@ def evaluate_seo(data):
             "recommendation": "Declare UTF-8 charset."
 
         })
-        # -----------------------------------
-# Open Graph
-# -----------------------------------
+
+    # -----------------------------------
+    # Open Graph
+    # -----------------------------------
 
     technical = data["technical"]
 
@@ -143,9 +146,10 @@ def evaluate_seo(data):
             "recommendation": "Add og:image."
 
         })
-        # -----------------------------------
-# Twitter Card
-# -----------------------------------
+
+    # -----------------------------------
+    # Twitter Card
+    # -----------------------------------
 
     if not technical.get("twitter_card"):
 

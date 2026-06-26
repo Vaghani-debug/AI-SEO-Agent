@@ -23,12 +23,13 @@ from app.utils.logger import logger
 from app.evaluators.seo_evaluator import evaluate_seo
 
 
-def audit_page(url: str):
+def audit_page(url: str, enable_ai: bool = False):
     """
     Crawl a webpage and collect basic SEO information.
 
     Parameters:
         url (str): Website URL entered by the user.
+        enable_ai (bool): Whether to run AI-powered analysis via Ollama.
 
     Returns:
         dict: Structured SEO audit response.
@@ -151,6 +152,20 @@ def audit_page(url: str):
 
             # Calculate SEO score
             seo_score = calculate_seo_score(issues)
+
+            # -------------------------
+            # AI-Powered Analysis (optional)
+            # -------------------------
+            ai_analysis = None
+            if enable_ai:
+                try:
+                    from app.agents.seo_analyst import analyze_seo_with_ai
+                    ai_analysis = analyze_seo_with_ai(seo_data, issues)
+                except Exception:
+                    # Graceful degradation: if AI fails, continue without it
+                    logger.warning("AI analysis unavailable — returning rule-based results only.")
+                    ai_analysis = None
+
             # -------------------------
             # Return structured response
             # -------------------------
@@ -183,7 +198,8 @@ def audit_page(url: str):
                         "links": link_data,
                         "technical": technical_data
                     },
-                    "seo_score": seo_score
+                    "seo_score": seo_score,
+                    "ai_analysis": ai_analysis
                 }
 
             }

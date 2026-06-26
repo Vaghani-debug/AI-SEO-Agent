@@ -26,7 +26,9 @@ def extract_headings(page):
     h6_count = page.locator("h6").count()
 
     # Get the first H1 text (if available)
-    first_h1 = " ".join(page.locator("h1").first.text_content().split())
+    first_h1 = None
+    if h1_count > 0:
+        first_h1 = " ".join(page.locator("h1").first.text_content().split())
 
     # Determine heading status
     if h1_count == 0:
