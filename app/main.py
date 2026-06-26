@@ -1,6 +1,8 @@
 import json
+import re
+from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.services.crawler import audit_page
@@ -130,5 +132,26 @@ def home():
 
 
 @app.get("/audit")
-def audit(url: str):
-        return audit_page(url)
+def audit(
+        url: str = Query(..., description="Website URL to audit"),
+        ai: Optional[bool] = Query(False, description="Enable AI-powered analysis via Ollama")
+):
+        # Validate URL format before processing
+        url_pattern = re.compile(
+                r'^https?://[^\s/$.?#].[^\s]*$',
+                re.IGNORECASE
+        )
+        # Also accept URLs without scheme (will be normalized later)
+        bare_pattern = re.compile(
+                r'^[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z]{2,})+',
+                re.IGNORECASE
+        )
+
+        if not url_pattern.match(url) and not bare_pattern.match(url):
+                return {
+                        "success": False,
+                        "message": "Invalid URL format. Provide a valid website URL.",
+                        "url": url
+                }
+
+        return audit_page(url, enable_ai=ai)
