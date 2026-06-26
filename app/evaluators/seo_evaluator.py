@@ -40,6 +40,128 @@ def evaluate_seo(data):
         })
 
     # -----------------------------------
+# HTML Language
+# -----------------------------------
+
+    language = data["technical"].get("language")
+
+    if not language:
+
+        issues.append({
+
+            "severity": "Low",
+
+            "category": "Technical SEO",
+
+            "issue": "Missing HTML language attribute",
+
+            "recommendation": "Add a valid lang attribute to the <html> element."
+
+        })
+        # -----------------------------------
+# Mobile Viewport
+# -----------------------------------
+
+    viewport = data["technical"].get("viewport")
+
+    if not viewport:
+
+        issues.append({
+
+            "severity": "High",
+
+            "category": "Technical SEO",
+
+            "issue": "Missing viewport meta tag",
+
+            "recommendation": "Add a responsive viewport meta tag."
+
+        })
+        # -----------------------------------
+# Charset
+# -----------------------------------
+
+    charset = data["technical"].get("charset")
+
+    if not charset:
+
+        issues.append({
+
+            "severity": "Medium",
+
+            "category": "Technical SEO",
+
+            "issue": "Missing charset declaration",
+
+            "recommendation": "Declare UTF-8 charset."
+
+        })
+        # -----------------------------------
+# Open Graph
+# -----------------------------------
+
+    technical = data["technical"]
+
+    if not technical.get("og_title"):
+
+        issues.append({
+
+            "severity": "Medium",
+
+            "category": "Social SEO",
+
+            "issue": "Missing Open Graph title",
+
+            "recommendation": "Add og:title."
+
+        })
+
+    if not technical.get("og_description"):
+
+        issues.append({
+
+            "severity": "Medium",
+
+            "category": "Social SEO",
+
+            "issue": "Missing Open Graph description",
+
+            "recommendation": "Add og:description."
+
+        })
+
+    if not technical.get("og_image"):
+
+        issues.append({
+
+            "severity": "Medium",
+
+            "category": "Social SEO",
+
+            "issue": "Missing Open Graph image",
+
+            "recommendation": "Add og:image."
+
+        })
+        # -----------------------------------
+# Twitter Card
+# -----------------------------------
+
+    if not technical.get("twitter_card"):
+
+        issues.append({
+
+            "severity": "Low",
+
+            "category": "Social SEO",
+
+            "issue": "Missing Twitter Card",
+
+            "recommendation": "Add twitter:card meta tag."
+
+        })
+
+    # -----------------------------------
     # Page Title
     # -----------------------------------
 
