@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from app.services.crawler import audit_page
+from app.agents.workflow import run_audit
 
 
 class PrettyJSONResponse(JSONResponse):
@@ -154,4 +154,4 @@ def audit(
                         "url": url
                 }
 
-        return audit_page(url, enable_ai=ai)
+        return run_audit(url, enable_ai=ai)

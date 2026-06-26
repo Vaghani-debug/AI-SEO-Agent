@@ -1,14 +1,15 @@
-# Import required modules
-import time
+# Web Crawler Service
+#
+# Responsibility: browser lifecycle ONLY.
+#   - Normalize URL
+#   - Launch Playwright browser
+#   - Navigate to the page
+#   - Return the live page object + request metadata
+#
+# Everything else (extraction, evaluation, scoring, AI, response building)
+# belongs in the LangGraph workflow — see app/agents/workflow.py
 
-from app.services.metadata import extract_metadata
-from app.services.images import extract_images
-from app.services.headings import extract_headings
-from app.services.links import extract_links
-# Import SEO score calculator
-from app.evaluators.score_calculator import calculate_seo_score
-# Import technical SEO extraction
-from app.services.technical import extract_technical
+import time
 
 # Import Playwright synchronous API
 from playwright.sync_api import sync_playwright
@@ -20,203 +21,87 @@ from app.utils.helpers import normalize_url
 from app.utils.logger import logger
 
 
-from app.evaluators.seo_evaluator import evaluate_seo
-
-
-def audit_page(url: str, enable_ai: bool = False):
+def crawl_page(url: str) -> dict:
     """
-    Crawl a webpage and collect basic SEO information.
+    Open a browser and navigate to the given URL.
+
+    This function is responsible ONLY for the browser lifecycle.
+    It does NOT extract, evaluate, score, or call AI.
+
+    The caller (workflow aggregate_node) MUST close browser and playwright
+    by calling state["browser"].close() and state["playwright_obj"].stop()
+    when processing is complete.
 
     Parameters:
-        url (str): Website URL entered by the user.
-        enable_ai (bool): Whether to run AI-powered analysis via Ollama.
+        url (str): Raw or normalized website URL.
 
     Returns:
-        dict: Structured SEO audit response.
+        dict: {
+            "page"           : Playwright Page object (live),
+            "browser"        : Playwright Browser object,
+            "playwright_obj" : Playwright instance (for cleanup),
+            "status_code"    : int | None,
+            "final_url"      : str,
+            "crawl_time"     : float,
+        }
+
+    Raises:
+        Exception: If navigation fails — caller handles gracefully.
     """
 
-    # Normalize the URL (adds https:// if missing)
+    # Normalize URL — adds https:// if scheme is missing
     url = normalize_url(url)
 
-    # Record crawl start time
+    # Record when the crawl started
     start_time = time.time()
 
+    # Start Playwright without a context manager so its lifecycle
+    # is controlled by the workflow (not this function)
+    pw = sync_playwright().start()
+
     try:
+        # Launch Chromium in headless mode
+        browser = pw.chromium.launch(headless=True)
 
-        # Start Playwright
-        with sync_playwright() as p:
-
-            # Launch Chromium browser in headless mode
-            browser = p.chromium.launch(headless=True)
-
-            # Create browser context
-            # Custom User-Agent reduces the chance of websites blocking Playwright
-            context = browser.new_context(
-                ignore_https_errors=True,
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/137.0 Safari/537.36"
-                )
+        # Create browser context with a realistic User-Agent to avoid blocks
+        context = browser.new_context(
+            ignore_https_errors=True,
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/137.0 Safari/537.36"
             )
+        )
 
-            # Open a new browser page
-            page = context.new_page()
+        # Open a new tab
+        page = context.new_page()
 
-            # Set maximum wait time for all Playwright operations
-            page.set_default_timeout(30000)
+        # Cap all Playwright operations at 30 seconds
+        page.set_default_timeout(30000)
 
-            # -------------------------
-            # Navigate to the website
-            # -------------------------
+        # Navigate to the URL and wait for the DOM to be ready
+        response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
-            try:
+        status_code = response.status if response else None
+        final_url   = page.url
+        crawl_time  = round(time.time() - start_time, 2)
 
-                # Load the webpage
-                response = page.goto(
-                    url,
-                    wait_until="domcontentloaded",
-                    timeout=30000
-                )
-
-            except Exception:
-
-                logger.exception(f"Navigation failed for {url}")
-
-                return {
-                    "success": False,
-                    "message": "Website could not be reached.",
-                    "url": url
-                }
-
-            # -------------------------
-            # Collect crawl information
-            # -------------------------
-
-            # HTTP status code (200, 301, 404, etc.)
-            status_code = response.status if response else None
-
-            # Final URL after redirects
-            final_url = page.url
-
-            # Calculate crawl duration
-            crawl_time = round(time.time() - start_time, 2)
-
-            # -------------------------
-            # Basic SEO Information
-            # -------------------------
-            # Extract metadata using the metadata service
-            metadata = extract_metadata(page)
-            # Extract heading information using the headings service
-            heading_data = extract_headings(page)
-
-            link_data = extract_links(page)
-                    
-            # -------------------------
-            # Image SEO
-            # -------------------------
-            # Extract image SEO information using the images service
-            image_data = extract_images(page)
-
-            # -------------------------
-            # Extract technical SEO information using the technical service
-            technical_data = extract_technical(page)
-
-            # -------------------------
-            # Write successful crawl to log
-            # -------------------------
-
-            logger.info(
-                f"SEO Audit Completed | "
-                f"URL={url} | "
-                f"Status={status_code} | "
-                f"Time={crawl_time}s"
-            )
-
-            # Combine extracted SEO data for evaluation
-            seo_data = {
-                "request": {"http_status": status_code},
-                "metadata": metadata,
-                "heading_data": heading_data,
-                "image_data": image_data,
-                "link_data": link_data,
-                "technical": technical_data
-            }
-
-            # Evaluate collected SEO data
-            issues = evaluate_seo(seo_data)
-
-            high_issues = sum(1 for issue in issues if issue.get("severity") == "High")
-            medium_issues = sum(1 for issue in issues if issue.get("severity") == "Medium")
-            low_issues = sum(1 for issue in issues if issue.get("severity") == "Low")
-
-            # Calculate SEO score
-            seo_score = calculate_seo_score(issues)
-
-            # -------------------------
-            # AI-Powered Analysis (optional)
-            # -------------------------
-            ai_analysis = None
-            if enable_ai:
-                try:
-                    from app.agents.seo_analyst import analyze_seo_with_ai
-                    ai_analysis = analyze_seo_with_ai(seo_data, issues)
-                except Exception:
-                    # Graceful degradation: if AI fails, continue without it
-                    logger.warning("AI analysis unavailable — returning rule-based results only.")
-                    ai_analysis = None
-
-            # -------------------------
-            # Return structured response
-            # -------------------------
-
-            return {
-
-                "success": True,
-
-                "message": "SEO audit completed successfully.",
-
-                "execution_time_seconds": crawl_time,
-
-                "data": {
-                    "request": {
-                        "input_url": url,
-                        "final_url": final_url,
-                        "http_status": status_code,
-                    },
-                    "summary": {
-                        "total_issues": len(issues),
-                        "high": high_issues,
-                        "medium": medium_issues,
-                        "low": low_issues,
-                    },
-                    "findings": issues,
-                    "seo": {
-                        "metadata": metadata,
-                        "headings": heading_data,
-                        "images": image_data,
-                        "links": link_data,
-                        "technical": technical_data
-                    },
-                    "seo_score": seo_score,
-                    "ai_analysis": ai_analysis
-                }
-
-            }
-
-    except Exception as e:
-
-        # Log unexpected errors with full traceback
-        logger.exception(f"SEO audit failed for {url}")
+        logger.info(f"Crawl OK | URL={url} | Status={status_code} | Time={crawl_time}s")
 
         return {
-
-            "success": False,
-
-            "message": "Unexpected error during SEO audit.",
-
-            "url": url,
-
-            "error": str(e)
-
+            "page":           page,
+            "browser":        browser,
+            "playwright_obj": pw,
+            "status_code":    status_code,
+            "final_url":      final_url,
+            "crawl_time":     crawl_time,
         }
+
+    except Exception:
+        # Clean up browser resources before propagating the error
+        try:
+            pw.stop()
+        except Exception:
+            pass
+        logger.exception(f"Navigation failed for {url}")
+        raise
