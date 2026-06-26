@@ -1,73 +1,56 @@
 """
-Link extraction service.
+Link Extraction Service.
 
-This module extracts basic link information
-from a webpage.
+Classifies all hyperlinks on the page as internal (same domain)
+or external (different domain). Internal link density supports
+site architecture and crawlability; external links signal authority.
 """
-
 
 from urllib.parse import urlparse
 
 
-def extract_links(page):
+def extract_links(page) -> dict:
     """
-    Extract basic link information.
+    Classify all <a href> links as internal or external.
 
     Parameters:
-        page: Playwright page object
+        page: Playwright page object (must already be navigated).
 
     Returns:
-        dict
+        dict with keys: total_links, internal_links, external_links.
     """
-
-    # Find every hyperlink
     links = page.locator("a")
-
-    # Count total links
     total_links = links.count()
-
-    # Counters
     internal_links = 0
     external_links = 0
 
-    # Current website domain
+    # Extract the domain of the current page for comparison
     current_domain = urlparse(page.url).netloc
 
-    # Loop through every link
     for i in range(total_links):
-
         href = links.nth(i).get_attribute("href")
 
         if not href:
-            continue
-
-        # Ignore anchors
+            continue  # skip anchors with no href attribute
         if href.startswith("#"):
-            continue
-
-        # Ignore JavaScript links
+            continue  # skip same-page fragment anchors
         if href.startswith("javascript:"):
-            continue
+            continue  # skip non-navigational pseudo-links
 
-        # Relative URL = internal
+        # Relative paths (e.g. /about) always belong to the current domain
         if href.startswith("/"):
             internal_links += 1
             continue
 
-        # Absolute URL
+        # For absolute URLs, compare netloc to determine internal vs external
         parsed = urlparse(href)
-
         if parsed.netloc == "" or parsed.netloc == current_domain:
             internal_links += 1
         else:
             external_links += 1
 
     return {
-
         "total_links": total_links,
-
         "internal_links": internal_links,
-
-        "external_links": external_links
-
+        "external_links": external_links,
     }

@@ -1,45 +1,30 @@
 """
-Metadata extraction service.
+Metadata Extraction Service.
 
-This module is responsible for extracting basic SEO metadata
-from an already opened Playwright page.
+Extracts core on-page SEO metadata from a Playwright page:
+title, meta description, canonical URL, and robots directive.
 """
 
-# Import helper functions
 from app.utils.helpers import safe_attribute
 
 
-def extract_metadata(page):
+def extract_metadata(page) -> dict:
     """
-    Extract basic SEO metadata from the webpage.
+    Extract SEO metadata from the loaded page.
 
     Parameters:
-        page: Playwright page object
+        page: Playwright page object (must already be navigated).
 
     Returns:
-        dict: Dictionary containing metadata.
+        dict with keys: title, meta_description, canonical, robots.
     """
-
     return {
-
-        # Page title
+        # <title> tag text content
         "title": page.title(),
-
-        # Meta description
-        "meta_description": safe_attribute(
-            page.locator("meta[name='description']"),
-            "content"
-        ),
-
-        # Canonical URL
-        "canonical": safe_attribute(
-            page.locator("link[rel='canonical']"),
-            "href"
-        ),
-
-        # Robots meta tag
-        "robots": safe_attribute(
-            page.locator("meta[name='robots']"),
-            "content"
-        )
+        # <meta name="description" content="..."> value
+        "meta_description": safe_attribute(page.locator("meta[name='description']"), "content"),
+        # <link rel="canonical" href="..."> -- prevents duplicate content penalties
+        "canonical": safe_attribute(page.locator("link[rel='canonical']"), "href"),
+        # <meta name="robots" content="..."> -- controls search engine crawl behaviour
+        "robots": safe_attribute(page.locator("meta[name='robots']"), "content"),
     }

@@ -1,3 +1,11 @@
+"""
+FastAPI Application Entry Point.
+
+Exposes two routes:
+    GET /       -- HTML landing page with API usage examples
+    GET /audit  -- SEO audit endpoint (the primary API)
+"""
+
 import json
 import re
 from typing import Optional
@@ -9,24 +17,31 @@ from app.agents.workflow import run_audit
 
 
 class PrettyJSONResponse(JSONResponse):
-        def render(self, content) -> bytes:
-                return json.dumps(
-                        content,
-                        ensure_ascii=False,
-                        allow_nan=False,
-                        indent=2,
-                ).encode("utf-8")
+    """JSONResponse subclass that pretty-prints output with 2-space indentation."""
+
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=2,
+        ).encode("utf-8")
 
 
 app = FastAPI(
-        title="SEO Audit Agent",
-        default_response_class=PrettyJSONResponse,
+    title="SEO Audit Agent",
+    default_response_class=PrettyJSONResponse,
 )
+
+# Compiled URL validation patterns (module-level for performance)
+_URL_WITH_SCHEME = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
+_URL_BARE_DOMAIN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z]{2,})+", re.IGNORECASE)
 
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-        return """
+    """Serve a minimal HTML landing page confirming the service is running."""
+    return """
         <!doctype html>
         <html lang="en">
         <head>
@@ -128,30 +143,35 @@ def home():
             </main>
         </body>
         </html>
-        """
+    """
 
 
 @app.get("/audit")
 def audit(
-        url: str = Query(..., description="Website URL to audit"),
-        ai: Optional[bool] = Query(False, description="Enable AI-powered analysis via Ollama")
+    url: str = Query(..., description="Website URL to audit"),
+    ai: Optional[bool] = Query(False, description="Enable AI-powered analysis via Google Gemini"),
 ):
-        # Validate URL format before processing
-        url_pattern = re.compile(
-                r'^https?://[^\s/$.?#].[^\s]*$',
-                re.IGNORECASE
-        )
-        # Also accept URLs without scheme (will be normalized later)
-        bare_pattern = re.compile(
-                r'^[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z]{2,})+',
-                re.IGNORECASE
-        )
+    """
+    Run a full SEO audit on the given URL.
 
-        if not url_pattern.match(url) and not bare_pattern.match(url):
-                return {
-                        "success": False,
-                        "message": "Invalid URL format. Provide a valid website URL.",
-                        "url": url
-                }
+    The request is processed by a LangGraph multi-agent pipeline that
+    crawls the page, extracts SEO signals, evaluates issues, calculates
+    a score, and optionally calls a Google Gemini AI agent for deeper
+    analysis.
 
-        return run_audit(url, enable_ai=ai)
+    Parameters:
+        url: Website URL to audit (scheme optional; https is assumed).
+        ai:  Set to true to include AI-powered recommendations.
+
+    Returns:
+        JSON SEO audit report.
+    """
+    # Reject obviously malformed URLs before handing off to the pipeline
+    if not _URL_WITH_SCHEME.match(url) and not _URL_BARE_DOMAIN.match(url):
+        return {
+            "success": False,
+            "message": "Invalid URL format. Provide a valid website URL.",
+            "url": url,
+        }
+
+    return run_audit(url, enable_ai=ai)

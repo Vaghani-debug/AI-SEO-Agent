@@ -1,364 +1,199 @@
 """
 SEO Evaluation Engine.
 
-Converts collected SEO data into SEO issues.
+Applies rule-based checks to the collected SEO data and returns
+a list of issues. Each issue carries a severity, category,
+description, and actionable recommendation.
+
+Severity weights (applied by score_calculator.py):
+    High   -15 pts  |  Medium  -7 pts  |  Low  -3 pts
 """
 
 
-def evaluate_seo(data):
+def evaluate_seo(data: dict) -> list:
     """
-    Evaluate collected SEO data.
+    Evaluate collected page data and generate a list of SEO issues.
 
     Parameters:
-        data (dict)
+        data: Aggregated dict produced by the LangGraph extraction nodes.
+              Expected keys: request, technical, metadata, heading_data,
+              image_data, link_data.
 
     Returns:
-        list
+        list[dict]: Detected issues, each with keys severity, category,
+                    issue, and recommendation.
     """
-
     issues = []
 
-    # -----------------------------------
-    # HTTP Status
-    # -----------------------------------
-
+    # ─── HTTP Status ─────────────────────────────────────────────────────────
     http_status = data["request"].get("http_status")
-
-    # Check whether the page returned HTTP 200
     if http_status != 200:
-
         issues.append({
-
             "severity": "High",
-
             "category": "Technical SEO",
-
             "issue": f"HTTP Status {http_status}",
-
-            "recommendation": "Ensure the page returns HTTP 200."
-
+            "recommendation": "Ensure the page returns HTTP 200.",
         })
 
-    # -----------------------------------
-    # HTML Language
-    # -----------------------------------
-
+    # ─── HTML Language Attribute ─────────────────────────────────────────────
     language = data["technical"].get("language")
-
     if not language:
-
         issues.append({
-
             "severity": "Low",
-
             "category": "Technical SEO",
-
             "issue": "Missing HTML language attribute",
-
-            "recommendation": "Add a valid lang attribute to the <html> element."
-
+            "recommendation": "Add a valid lang attribute to the <html> element (e.g. lang=\"en\").",
         })
 
-    # -----------------------------------
-    # Mobile Viewport
-    # -----------------------------------
-
+    # ─── Mobile Viewport ─────────────────────────────────────────────────────
     viewport = data["technical"].get("viewport")
-
     if not viewport:
-
         issues.append({
-
             "severity": "High",
-
             "category": "Technical SEO",
-
             "issue": "Missing viewport meta tag",
-
-            "recommendation": "Add a responsive viewport meta tag."
-
+            "recommendation": 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> for mobile rendering.',
         })
 
-    # -----------------------------------
-    # Charset
-    # -----------------------------------
-
+    # ─── Character Encoding ──────────────────────────────────────────────────
     charset = data["technical"].get("charset")
-
     if not charset:
-
         issues.append({
-
             "severity": "Medium",
-
             "category": "Technical SEO",
-
             "issue": "Missing charset declaration",
-
-            "recommendation": "Declare UTF-8 charset."
-
+            "recommendation": 'Add <meta charset="UTF-8"> as the first tag inside <head>.',
         })
 
-    # -----------------------------------
-    # Open Graph
-    # -----------------------------------
-
+    # ─── Open Graph Tags ─────────────────────────────────────────────────────
     technical = data["technical"]
-
     if not technical.get("og_title"):
-
         issues.append({
-
             "severity": "Medium",
-
             "category": "Social SEO",
-
-            "issue": "Missing Open Graph title",
-
-            "recommendation": "Add og:title."
-
+            "issue": "Missing Open Graph title (og:title)",
+            "recommendation": "Add <meta property=\"og:title\"> to control the title shown on social shares.",
         })
-
     if not technical.get("og_description"):
-
         issues.append({
-
             "severity": "Medium",
-
             "category": "Social SEO",
-
-            "issue": "Missing Open Graph description",
-
-            "recommendation": "Add og:description."
-
+            "issue": "Missing Open Graph description (og:description)",
+            "recommendation": "Add <meta property=\"og:description\"> to improve link previews on social platforms.",
         })
-
     if not technical.get("og_image"):
-
         issues.append({
-
             "severity": "Medium",
-
             "category": "Social SEO",
-
-            "issue": "Missing Open Graph image",
-
-            "recommendation": "Add og:image."
-
+            "issue": "Missing Open Graph image (og:image)",
+            "recommendation": "Add <meta property=\"og:image\"> with a 1200x630 px image for rich social previews.",
         })
 
-    # -----------------------------------
-    # Twitter Card
-    # -----------------------------------
-
+    # ─── Twitter Card ────────────────────────────────────────────────────────
     if not technical.get("twitter_card"):
-
         issues.append({
-
             "severity": "Low",
-
             "category": "Social SEO",
-
-            "issue": "Missing Twitter Card",
-
-            "recommendation": "Add twitter:card meta tag."
-
+            "issue": "Missing Twitter Card meta tag",
+            "recommendation": 'Add <meta name="twitter:card" content="summary_large_image"> for richer X/Twitter shares.',
         })
 
-    # -----------------------------------
-    # Page Title
-    # -----------------------------------
-
+    # ─── Page Title ──────────────────────────────────────────────────────────
     title = data["metadata"].get("title")
-
     if not title:
-
         issues.append({
-
             "severity": "High",
-
             "category": "Metadata",
-
-            "issue": "Missing Title",
-
-            "recommendation": "Add a unique page title."
-
+            "issue": "Missing page title",
+            "recommendation": "Add a unique, descriptive <title> tag to every page.",
         })
-
     else:
-
         title_length = len(title)
-
         if title_length < 30:
-
             issues.append({
-
                 "severity": "Low",
-
                 "category": "Metadata",
-
-                "issue": "Title is too short",
-
-                "recommendation": "Keep title between 30–60 characters."
-
+                "issue": f"Title too short ({title_length} chars)",
+                "recommendation": "Keep the title between 30 and 60 characters for optimal SERP display.",
             })
-
         elif title_length > 60:
-
             issues.append({
-
                 "severity": "Medium",
-
                 "category": "Metadata",
-
-                "issue": "Title is too long",
-
-                "recommendation": "Keep title below 60 characters."
-
+                "issue": f"Title too long ({title_length} chars)",
+                "recommendation": "Keep the title under 60 characters to avoid truncation in search results.",
             })
 
-    # -----------------------------------
-    # Meta Description
-    # -----------------------------------
-
+    # ─── Meta Description ────────────────────────────────────────────────────
     description = data["metadata"].get("meta_description")
-
     if not description:
-
         issues.append({
-
             "severity": "High",
-
             "category": "Metadata",
-
-            "issue": "Missing Meta Description",
-
-            "recommendation": "Add a unique meta description."
-
+            "issue": "Missing meta description",
+            "recommendation": "Add a unique meta description between 120 and 160 characters.",
         })
-
     else:
-
         description_length = len(description)
-
         if description_length < 120:
-
             issues.append({
-
                 "severity": "Low",
-
                 "category": "Metadata",
-
-                "issue": "Meta description is too short",
-
-                "recommendation": "Aim for 120–160 characters."
-
+                "issue": f"Meta description too short ({description_length} chars)",
+                "recommendation": "Aim for 120-160 characters to maximise SERP click-through rate.",
             })
-
         elif description_length > 160:
-
             issues.append({
-
                 "severity": "Medium",
-
                 "category": "Metadata",
-
-                "issue": "Meta description is too long",
-
-                "recommendation": "Keep it under 160 characters."
-
+                "issue": f"Meta description too long ({description_length} chars)",
+                "recommendation": "Keep meta description under 160 characters to prevent truncation.",
             })
 
-    # -----------------------------------
-    # Canonical
-    # -----------------------------------
-
+    # ─── Canonical URL ───────────────────────────────────────────────────────
     if not data["metadata"].get("canonical"):
-
         issues.append({
-
             "severity": "Medium",
-
             "category": "Technical SEO",
-
-            "issue": "Missing Canonical URL",
-
-            "recommendation": "Add a canonical tag."
-
+            "issue": "Missing canonical URL tag",
+            "recommendation": "Add <link rel=\"canonical\"> to prevent duplicate content penalties.",
         })
 
-    # -----------------------------------
-    # Headings
-    # -----------------------------------
-
-    h1_count = data["heading_data"].get("h1_count")
-
+    # ─── H1 Headings ─────────────────────────────────────────────────────────
+    h1_count = data["heading_data"].get("h1_count", 0)
     if h1_count == 0:
-
         issues.append({
-
             "severity": "High",
-
             "category": "Headings",
-
-            "issue": "Missing H1",
-
-            "recommendation": "Add exactly one H1."
-
+            "issue": "Missing H1 heading",
+            "recommendation": "Add exactly one H1 that describes the primary topic of the page.",
         })
-
     elif h1_count > 1:
-
         issues.append({
-
             "severity": "Medium",
-
             "category": "Headings",
-
-            "issue": "Multiple H1 headings",
-
-            "recommendation": "Keep only one H1."
-
+            "issue": f"Multiple H1 headings ({h1_count} found)",
+            "recommendation": "Use only one H1 per page; demote additional headings to H2.",
         })
 
-    # -----------------------------------
-    # Images
-    # -----------------------------------
-
+    # ─── Image ALT Text ──────────────────────────────────────────────────────
     missing_alt = data["image_data"].get("images_missing_alt", 0)
-
     if missing_alt > 0:
-
         issues.append({
-
             "severity": "Medium",
-
             "category": "Images",
-
-            "issue": f"{missing_alt} images missing ALT text",
-
-            "recommendation": "Add ALT text to every important image."
-
+            "issue": f"{missing_alt} image(s) missing ALT text",
+            "recommendation": "Add descriptive ALT text to every meaningful image for accessibility and image search.",
         })
 
-    # -----------------------------------
-    # Internal Links
-    # -----------------------------------
-
+    # ─── Internal Links ──────────────────────────────────────────────────────
     internal_links = data["link_data"].get("internal_links", 0)
-
     if internal_links == 0:
-
         issues.append({
-
             "severity": "High",
-
             "category": "Links",
-
             "issue": "No internal links found",
-
-            "recommendation": "Add internal links between relevant pages."
-
+            "recommendation": "Add contextual internal links to distribute PageRank and help crawlers discover content.",
         })
 
     return issues
