@@ -54,11 +54,13 @@ def analyze_seo_with_ai(seo_data: dict, issues: list) -> dict | None:
 
     try:
         # Initialize Google Gemini LLM client
+        # response_mime_type forces Gemini to return pure JSON with no surrounding text
         llm = ChatGoogleGenerativeAI(
             google_api_key=settings.GEMINI_API_KEY,
             model=settings.GEMINI_MODEL,
             temperature=settings.GEMINI_TEMPERATURE,
             max_output_tokens=settings.GEMINI_MAX_TOKENS,
+            response_mime_type="application/json",
         )
 
         # Build the human message with all SEO context
@@ -168,12 +170,25 @@ def _parse_llm_response(content: str) -> dict | None:
         text = text[:-3]
     text = text.strip()
 
+    # First attempt: parse the full text directly
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        logger.warning("Failed to parse AI response as JSON. Returning raw text.")
-        # Return a minimal structure with the raw response
-        return {
+        pass
+
+    # Second attempt: extract JSON by finding the outermost { ... } block.
+    # Handles cases where Gemini adds explanatory text before or after the JSON.
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    # Final fallback: return structured error so the response stays valid
+    logger.warning("Failed to parse AI response as JSON after all attempts.")
+    return {
             "overall_assessment": text[:500],
             "priority_ranking": [],
             "detailed_recommendations": [],
