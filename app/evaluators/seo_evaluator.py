@@ -18,43 +18,218 @@ def evaluate_seo(data):
 
     issues = []
 
-    metadata = data.get("metadata", {}) or {}
-    heading_data = data.get("heading_data", {}) or {}
-    image_data = data.get("image_data", {}) or {}
+    # -----------------------------------
+    # HTTP Status
+    # -----------------------------------
 
-    meta_description = metadata.get("meta_description")
-    h1_count = heading_data.get("h1_count") or 0
-    images_missing_alt = image_data.get("images_missing_alt") or 0
+    if data.get("http_status") != 200:
 
-    if not meta_description:
         issues.append({
+
             "severity": "High",
-            "category": "Metadata",
-            "issue": "Missing Meta Description",
-            "recommendation": "Add a unique meta description."
+
+            "category": "Technical SEO",
+
+            "issue": f"HTTP Status {data.get('http_status')}",
+
+            "recommendation": "Ensure the page returns HTTP 200."
+
         })
+
+    # -----------------------------------
+    # Page Title
+    # -----------------------------------
+
+    title = data["metadata"].get("title")
+
+    if not title:
+
+        issues.append({
+
+            "severity": "High",
+
+            "category": "Metadata",
+
+            "issue": "Missing Title",
+
+            "recommendation": "Add a unique page title."
+
+        })
+
+    else:
+
+        title_length = len(title)
+
+        if title_length < 30:
+
+            issues.append({
+
+                "severity": "Low",
+
+                "category": "Metadata",
+
+                "issue": "Title is too short",
+
+                "recommendation": "Keep title between 30–60 characters."
+
+            })
+
+        elif title_length > 60:
+
+            issues.append({
+
+                "severity": "Medium",
+
+                "category": "Metadata",
+
+                "issue": "Title is too long",
+
+                "recommendation": "Keep title below 60 characters."
+
+            })
+
+    # -----------------------------------
+    # Meta Description
+    # -----------------------------------
+
+    description = data["metadata"].get("meta_description")
+
+    if not description:
+
+        issues.append({
+
+            "severity": "High",
+
+            "category": "Metadata",
+
+            "issue": "Missing Meta Description",
+
+            "recommendation": "Add a unique meta description."
+
+        })
+
+    else:
+
+        description_length = len(description)
+
+        if description_length < 120:
+
+            issues.append({
+
+                "severity": "Low",
+
+                "category": "Metadata",
+
+                "issue": "Meta description is too short",
+
+                "recommendation": "Aim for 120–160 characters."
+
+            })
+
+        elif description_length > 160:
+
+            issues.append({
+
+                "severity": "Medium",
+
+                "category": "Metadata",
+
+                "issue": "Meta description is too long",
+
+                "recommendation": "Keep it under 160 characters."
+
+            })
+
+    # -----------------------------------
+    # Canonical
+    # -----------------------------------
+
+    if not data["metadata"].get("canonical"):
+
+        issues.append({
+
+            "severity": "Medium",
+
+            "category": "Technical SEO",
+
+            "issue": "Missing Canonical URL",
+
+            "recommendation": "Add a canonical tag."
+
+        })
+
+    # -----------------------------------
+    # Headings
+    # -----------------------------------
+
+    h1_count = data["heading_data"].get("h1_count")
 
     if h1_count == 0:
+
         issues.append({
+
             "severity": "High",
+
             "category": "Headings",
+
             "issue": "Missing H1",
-            "recommendation": "Add one H1 heading."
-        })
-    elif h1_count > 1:
-        issues.append({
-            "severity": "Medium",
-            "category": "Headings",
-            "issue": "Multiple H1 headings",
-            "recommendation": "Keep only one H1."
+
+            "recommendation": "Add exactly one H1."
+
         })
 
-    if images_missing_alt > 0:
+    elif h1_count > 1:
+
         issues.append({
+
             "severity": "Medium",
+
+            "category": "Headings",
+
+            "issue": "Multiple H1 headings",
+
+            "recommendation": "Keep only one H1."
+
+        })
+
+    # -----------------------------------
+    # Images
+    # -----------------------------------
+
+    missing_alt = data["image_data"].get("images_missing_alt", 0)
+
+    if missing_alt > 0:
+
+        issues.append({
+
+            "severity": "Medium",
+
             "category": "Images",
-            "issue": "Images missing ALT text",
-            "recommendation": "Add ALT text to all images."
+
+            "issue": f"{missing_alt} images missing ALT text",
+
+            "recommendation": "Add ALT text to every important image."
+
+        })
+
+    # -----------------------------------
+    # Internal Links
+    # -----------------------------------
+
+    internal_links = data["link_data"].get("internal_links", 0)
+
+    if internal_links == 0:
+
+        issues.append({
+
+            "severity": "High",
+
+            "category": "Links",
+
+            "issue": "No internal links found",
+
+            "recommendation": "Add internal links between relevant pages."
+
         })
 
     return issues
