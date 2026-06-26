@@ -17,7 +17,10 @@ def safe_text(locator):
         if locator.count() == 0:
             return None
 
+        # Read text from the element
         text = locator.first.text_content()
+
+        # Remove leading/trailing spaces and new lines
         return text.strip() if text else None
 
 

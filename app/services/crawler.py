@@ -5,6 +5,8 @@ from app.services.metadata import extract_metadata
 from app.services.images import extract_images
 from app.services.headings import extract_headings
 from app.services.links import extract_links
+# Import SEO score calculator
+from app.evaluators.score_calculator import calculate_seo_score
 
 # Import Playwright synchronous API
 from playwright.sync_api import sync_playwright
@@ -124,10 +126,9 @@ def audit_page(url: str):
                 f"Time={crawl_time}s"
             )
 
-
-
             # Combine extracted SEO data for evaluation
             seo_data = {
+                "request": {"http_status": status_code},
                 "metadata": metadata,
                 "heading_data": heading_data,
                 "image_data": image_data,
@@ -140,6 +141,9 @@ def audit_page(url: str):
             high_issues = sum(1 for issue in issues if issue.get("severity") == "High")
             medium_issues = sum(1 for issue in issues if issue.get("severity") == "Medium")
             low_issues = sum(1 for issue in issues if issue.get("severity") == "Low")
+
+            # Calculate SEO score
+            seo_score = calculate_seo_score(issues)
             # -------------------------
             # Return structured response
             # -------------------------
@@ -171,6 +175,7 @@ def audit_page(url: str):
                         "images": image_data,
                         "links": link_data,
                     },
+                    "seo_score": seo_score
                 }
 
             }

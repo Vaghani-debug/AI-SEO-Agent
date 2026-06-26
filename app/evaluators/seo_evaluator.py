@@ -22,7 +22,10 @@ def evaluate_seo(data):
     # HTTP Status
     # -----------------------------------
 
-    if data.get("http_status") != 200:
+    http_status = data["request"].get("http_status")
+
+    # Check whether the page returned HTTP 200
+    if http_status != 200:
 
         issues.append({
 
@@ -30,7 +33,7 @@ def evaluate_seo(data):
 
             "category": "Technical SEO",
 
-            "issue": f"HTTP Status {data.get('http_status')}",
+            "issue": f"HTTP Status {http_status}",
 
             "recommendation": "Ensure the page returns HTTP 200."
 
