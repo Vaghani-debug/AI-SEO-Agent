@@ -7,6 +7,8 @@ from app.services.headings import extract_headings
 from app.services.links import extract_links
 # Import SEO score calculator
 from app.evaluators.score_calculator import calculate_seo_score
+# Import technical SEO extraction
+from app.services.technical import extract_technical
 
 # Import Playwright synchronous API
 from playwright.sync_api import sync_playwright
@@ -116,6 +118,10 @@ def audit_page(url: str):
             image_data = extract_images(page)
 
             # -------------------------
+            # Extract technical SEO information using the technical service
+            technical_data = extract_technical(page)
+
+            # -------------------------
             # Write successful crawl to log
             # -------------------------
 
@@ -133,6 +139,7 @@ def audit_page(url: str):
                 "heading_data": heading_data,
                 "image_data": image_data,
                 "link_data": link_data,
+                "technical": technical_data
             }
 
             # Evaluate collected SEO data
@@ -174,6 +181,7 @@ def audit_page(url: str):
                         "headings": heading_data,
                         "images": image_data,
                         "links": link_data,
+                        "technical": technical_data
                     },
                     "seo_score": seo_score
                 }
