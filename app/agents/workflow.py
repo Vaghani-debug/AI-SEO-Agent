@@ -52,14 +52,15 @@ def crawl_node(state: WorkflowState) -> dict:
     try:
         result = crawl_page(state["url"])
         return {
-            "page":           result["page"],
-            "browser":        result["browser"],
-            "playwright_obj": result["playwright_obj"],
-            "status_code":    result["status_code"],
-            "final_url":      result["final_url"],
-            "crawl_time":     result["crawl_time"],
-            "crawl_success":  True,
-            "crawl_error":    None,
+            "page":             result["page"],
+            "browser":          result["browser"],
+            "playwright_obj":   result["playwright_obj"],
+            "status_code":      result["status_code"],
+            "response_headers": result["response_headers"],
+            "final_url":        result["final_url"],
+            "crawl_time":       result["crawl_time"],
+            "crawl_success":    True,
+            "crawl_error":      None,
         }
     except Exception as e:
         logger.error(f"crawl_node failed: {e}")
@@ -125,6 +126,41 @@ def technical_node(state: WorkflowState) -> dict:
     except Exception as e:
         logger.error(f"technical_node failed: {e}")
         return {"technical_data": {}, "errors": state.get("errors", []) + [f"technical: {e}"]}
+
+
+def structured_data_node(state: WorkflowState) -> dict:
+    """Extract JSON-LD structured data blocks from the page."""
+    try:
+        from app.services.structured_data import extract_structured_data
+        return {"structured_data": extract_structured_data(state["page"])}
+    except Exception as e:
+        logger.error(f"structured_data_node failed: {e}")
+        return {"structured_data": {}, "errors": state.get("errors", []) + [f"structured_data: {e}"]}
+
+
+def robots_node(state: WorkflowState) -> dict:
+    """Fetch robots.txt and check sitemap accessibility."""
+    try:
+        from app.services.robots_sitemap import fetch_robots_data
+        url = state.get("final_url") or state["url"]
+        return {"robots_data": fetch_robots_data(url)}
+    except Exception as e:
+        logger.error(f"robots_node failed: {e}")
+        return {"robots_data": {}, "errors": state.get("errors", []) + [f"robots: {e}"]}
+
+
+def security_node(state: WorkflowState) -> dict:
+    """Analyse HTTP response headers for security signals."""
+    try:
+        from app.services.security import extract_security_data
+        result = extract_security_data(
+            state.get("response_headers") or {},
+            state.get("final_url") or state["url"],
+        )
+        return {"security_data": result}
+    except Exception as e:
+        logger.error(f"security_node failed: {e}")
+        return {"security_data": {}, "errors": state.get("errors", []) + [f"security: {e}"]}
 
 
 # ─────────────────────────────────────────────
@@ -202,12 +238,15 @@ def evaluate_node(state: WorkflowState) -> dict:
     handled by scoring_node.
     """
     seo_data = {
-        "request":      {"http_status": state["status_code"]},
-        "metadata":     state.get("metadata") or {},
-        "heading_data": state.get("heading_data") or {},
-        "image_data":   state.get("image_data") or {},
-        "link_data":    state.get("link_data") or {},
-        "technical":    state.get("technical_data") or {},
+        "request":         {"http_status": state["status_code"]},
+        "metadata":        state.get("metadata") or {},
+        "heading_data":    state.get("heading_data") or {},
+        "image_data":      state.get("image_data") or {},
+        "link_data":       state.get("link_data") or {},
+        "technical":       state.get("technical_data") or {},
+        "structured_data": state.get("structured_data") or {},
+        "robots_data":     state.get("robots_data") or {},
+        "security":        state.get("security_data") or {},
     }
 
     issues = evaluate_seo(seo_data)
@@ -329,11 +368,14 @@ def aggregate_node(state: WorkflowState) -> dict:
                 },
                 "findings":    issues,
                 "seo": {
-                    "metadata":  state.get("metadata"),
-                    "headings":  state.get("heading_data"),
-                    "images":    state.get("image_data"),
-                    "links":     state.get("link_data"),
-                    "technical": state.get("technical_data"),
+                    "metadata":        state.get("metadata"),
+                    "headings":        state.get("heading_data"),
+                    "images":          state.get("image_data"),
+                    "links":           state.get("link_data"),
+                    "technical":       state.get("technical_data"),
+                    "structured_data": state.get("structured_data"),
+                    "robots":          state.get("robots_data"),
+                    "security":        state.get("security_data"),
                 },
                 "seo_score":    state.get("seo_score"),
                 "ai_analysis":  state.get("ai_analysis"),
@@ -384,17 +426,20 @@ def build_workflow() -> StateGraph:
     graph = StateGraph(WorkflowState)
 
     # Register all nodes
-    graph.add_node("crawl",      crawl_node)
-    graph.add_node("metadata",   metadata_node)
-    graph.add_node("headings",   headings_node)
-    graph.add_node("images",     images_node)
-    graph.add_node("links",      links_node)
-    graph.add_node("technical",  technical_node)
-    graph.add_node("validate",   validate_node)
-    graph.add_node("evaluate",   evaluate_node)
-    graph.add_node("scoring",    scoring_node)
-    graph.add_node("ai_analyze", ai_analyze_node)
-    graph.add_node("aggregate",  aggregate_node)
+    graph.add_node("crawl",           crawl_node)
+    graph.add_node("metadata",        metadata_node)
+    graph.add_node("headings",        headings_node)
+    graph.add_node("images",          images_node)
+    graph.add_node("links",           links_node)
+    graph.add_node("technical",       technical_node)
+    graph.add_node("structured_data", structured_data_node)
+    graph.add_node("robots",          robots_node)
+    graph.add_node("security",        security_node)
+    graph.add_node("validate",        validate_node)
+    graph.add_node("evaluate",        evaluate_node)
+    graph.add_node("scoring",         scoring_node)
+    graph.add_node("ai_analyze",      ai_analyze_node)
+    graph.add_node("aggregate",       aggregate_node)
 
     # Entry point
     graph.set_entry_point("crawl")
@@ -406,11 +451,14 @@ def build_workflow() -> StateGraph:
     })
 
     # Sequential extraction chain
-    graph.add_edge("metadata",  "headings")
-    graph.add_edge("headings",  "images")
-    graph.add_edge("images",    "links")
-    graph.add_edge("links",     "technical")
-    graph.add_edge("technical", "validate")
+    graph.add_edge("metadata",        "headings")
+    graph.add_edge("headings",        "images")
+    graph.add_edge("images",          "links")
+    graph.add_edge("links",           "technical")
+    graph.add_edge("technical",       "structured_data")
+    graph.add_edge("structured_data", "robots")
+    graph.add_edge("robots",          "security")
+    graph.add_edge("security",        "validate")
 
     # validate → evaluate (or → aggregate on critical failure)
     graph.add_conditional_edges("validate", route_after_validate, {
@@ -474,6 +522,10 @@ def run_audit(url: str, enable_ai: bool = False) -> dict:
         "image_data":          None,
         "link_data":           None,
         "technical_data":      None,
+        "structured_data":     None,
+        "robots_data":         None,
+        "security_data":       None,
+        "response_headers":    {},
         "validation_passed":   False,
         "validation_warnings": [],
         "seo_data":            None,

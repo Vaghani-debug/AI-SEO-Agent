@@ -72,19 +72,21 @@ def crawl_page(url: str) -> dict:
         # Navigate and wait until the initial DOM is parsed (not full load)
         response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
-        status_code = response.status if response else None
-        final_url   = page.url
-        crawl_time  = round(time.time() - start_time, 2)
+        status_code      = response.status if response else None
+        response_headers = dict(response.headers) if response else {}
+        final_url        = page.url
+        crawl_time       = round(time.time() - start_time, 2)
 
         logger.info(f"Crawl OK | URL={url} | Status={status_code} | Time={crawl_time}s")
 
         return {
-            "page":           page,
-            "browser":        browser,
-            "playwright_obj": pw,
-            "status_code":    status_code,
-            "final_url":      final_url,
-            "crawl_time":     crawl_time,
+            "page":             page,
+            "browser":          browser,
+            "playwright_obj":   pw,
+            "status_code":      status_code,
+            "response_headers": response_headers,
+            "final_url":        final_url,
+            "crawl_time":       crawl_time,
         }
 
     except Exception:

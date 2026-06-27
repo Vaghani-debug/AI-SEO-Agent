@@ -196,4 +196,110 @@ def evaluate_seo(data: dict) -> list:
             "recommendation": "Add contextual internal links to distribute PageRank and help crawlers discover content.",
         })
 
+    # ─── Structured Data (JSON-LD) ────────────────────────────────────────────
+    if "structured_data" in data:
+        sd = data["structured_data"]
+        if not sd.get("has_structured_data"):
+            issues.append({
+                "severity": "Medium",
+                "category": "Structured Data",
+                "issue": "No structured data (JSON-LD) detected",
+                "recommendation": (
+                    "Add JSON-LD structured data (e.g. Organization, Article, "
+                    "BreadcrumbList) to enable Rich Results in Google Search."
+                ),
+            })
+        if sd.get("invalid_blocks", 0) > 0:
+            issues.append({
+                "severity": "Medium",
+                "category": "Structured Data",
+                "issue": f"{sd['invalid_blocks']} invalid JSON-LD block(s) detected",
+                "recommendation": (
+                    "Fix the malformed JSON-LD. Use Google's Rich Results Test "
+                    "(search.google.com/test/rich-results) to validate."
+                ),
+            })
+
+    # ─── Robots.txt and Sitemap ───────────────────────────────────────────────
+    if "robots_data" in data:
+        rb = data["robots_data"]
+        if not rb.get("robots_accessible"):
+            issues.append({
+                "severity": "Medium",
+                "category": "Crawlability",
+                "issue": "robots.txt not accessible",
+                "recommendation": (
+                    "Create a robots.txt at the root of your domain to guide "
+                    "search engine crawlers."
+                ),
+            })
+        if rb.get("disallow_all"):
+            issues.append({
+                "severity": "High",
+                "category": "Crawlability",
+                "issue": "robots.txt blocks all search engine crawlers",
+                "recommendation": (
+                    "Remove or narrow the 'Disallow: /' rule under 'User-agent: *' "
+                    "— it prevents Google from indexing your site."
+                ),
+            })
+        if not rb.get("sitemap_accessible"):
+            issues.append({
+                "severity": "Medium",
+                "category": "Crawlability",
+                "issue": "XML sitemap not found or inaccessible",
+                "recommendation": (
+                    "Create an XML sitemap and submit it in Google Search Console "
+                    "to help search engines discover all your pages."
+                ),
+            })
+
+    # ─── Security Headers ────────────────────────────────────────────────────
+    if "security" in data:
+        sec = data["security"]
+        if not sec.get("is_https"):
+            issues.append({
+                "severity": "High",
+                "category": "Security",
+                "issue": "Page not served over HTTPS",
+                "recommendation": (
+                    "Migrate to HTTPS. Google uses HTTPS as a ranking signal and "
+                    "Chrome marks HTTP pages as 'Not Secure'."
+                ),
+            })
+        if not sec.get("has_hsts"):
+            issues.append({
+                "severity": "Medium",
+                "category": "Security",
+                "issue": "Missing HSTS header (Strict-Transport-Security)",
+                "recommendation": (
+                    "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains' "
+                    "to enforce HTTPS for all future visits."
+                ),
+            })
+        if not sec.get("has_x_frame_options"):
+            issues.append({
+                "severity": "Low",
+                "category": "Security",
+                "issue": "Missing X-Frame-Options header",
+                "recommendation": "Add 'X-Frame-Options: SAMEORIGIN' to prevent clickjacking.",
+            })
+        if not sec.get("has_csp"):
+            issues.append({
+                "severity": "Medium",
+                "category": "Security",
+                "issue": "Missing Content-Security-Policy header",
+                "recommendation": (
+                    "Add a Content-Security-Policy header to restrict which "
+                    "resources the browser may load, preventing XSS attacks."
+                ),
+            })
+        if not sec.get("has_x_content_type_options"):
+            issues.append({
+                "severity": "Low",
+                "category": "Security",
+                "issue": "Missing X-Content-Type-Options header",
+                "recommendation": "Add 'X-Content-Type-Options: nosniff' to prevent MIME sniffing.",
+            })
+
     return issues

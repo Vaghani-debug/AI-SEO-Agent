@@ -45,6 +45,7 @@ class WorkflowState(TypedDict):
     # ── Crawl results ────────────────────────────────────────────────────────
     page: Optional[Any]             # live Playwright Page (used by extraction nodes)
     status_code: Optional[int]      # final HTTP status code after redirects
+    response_headers: Optional[dict] # HTTP response headers from initial page load
     final_url: Optional[str]        # landing URL after all redirects
     crawl_time: Optional[float]     # wall-clock seconds to complete navigation
     crawl_success: bool             # False routes directly to aggregate_node
@@ -56,6 +57,9 @@ class WorkflowState(TypedDict):
     image_data: Optional[dict]      # image_count, images_missing_alt
     link_data: Optional[dict]       # total_links, internal_links, external_links
     technical_data: Optional[dict]  # charset, viewport, lang, OG tags, Twitter Card
+    structured_data: Optional[dict] # JSON-LD blocks: types, valid/invalid counts
+    robots_data: Optional[dict]     # robots.txt accessible, sitemap accessible
+    security_data: Optional[dict]   # HTTPS, HSTS, X-Frame-Options, CSP, etc.
 
     # ── Validation ───────────────────────────────────────────────────────────
     validation_passed: bool         # False routes directly to aggregate_node
