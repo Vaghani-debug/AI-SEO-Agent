@@ -23,6 +23,7 @@ parallel via LangGraph fan-out, merging into a single validate_node.
 
 from langgraph.graph import StateGraph, END
 
+from app.config import settings
 from app.models.workflow_state import WorkflowState
 from app.services.metadata import extract_metadata
 from app.services.headings import extract_headings
@@ -32,7 +33,11 @@ from app.services.technical import extract_technical
 from app.evaluators.seo_evaluator import evaluate_seo
 from app.evaluators.score_calculator import calculate_seo_score
 from app.agents.seo_analyst import analyze_seo_with_ai
+from app.utils.cache import AuditCache
 from app.utils.logger import logger
+
+# Module-level cache — shared across all requests in this process
+_cache = AuditCache(ttl_seconds=settings.AUDIT_CACHE_TTL_SECONDS)
 
 
 # ─────────────────────────────────────────────
@@ -305,13 +310,18 @@ def aggregate_node(state: WorkflowState) -> dict:
     """
 
     # ── Browser cleanup (always, best-effort) ─────────────────
-    try:
-        if state.get("browser"):
+    # Separate try/except blocks ensure playwright_obj.stop() is
+    # always attempted even if browser.close() raises.
+    if state.get("browser"):
+        try:
             state["browser"].close()
-        if state.get("playwright_obj"):
+        except Exception:
+            pass
+    if state.get("playwright_obj"):
+        try:
             state["playwright_obj"].stop()
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # ── Crawl failure response ────────────────────────────────
     if not state.get("crawl_success"):
@@ -497,7 +507,8 @@ def run_audit(url: str, enable_ai: bool = False) -> dict:
     Run the full SEO audit workflow for a given URL.
 
     Single entry point called by the FastAPI endpoint.
-    All orchestration is inside the LangGraph state graph.
+    Results are cached in memory for AUDIT_CACHE_TTL_SECONDS seconds
+    (per URL + enable_ai combination) to avoid redundant crawls.
 
     Parameters:
         url (str): The website URL to audit.
@@ -506,6 +517,13 @@ def run_audit(url: str, enable_ai: bool = False) -> dict:
     Returns:
         dict: Complete SEO audit response ready to return as JSON.
     """
+    # ── Cache lookup ──────────────────────────────────────────
+    if settings.AUDIT_CACHE_ENABLED:
+        cached = _cache.get(url, enable_ai)
+        if cached is not None:
+            logger.info(f"Cache hit | URL={url}")
+            return cached
+
     initial_state: WorkflowState = {
         "url":                 url,
         "enable_ai":           enable_ai,
@@ -537,4 +555,10 @@ def run_audit(url: str, enable_ai: bool = False) -> dict:
     }
 
     final_state = _workflow.invoke(initial_state)
-    return final_state["audit_result"]
+    result = final_state["audit_result"]
+
+    # ── Cache store (successful audits only) ──────────────────
+    if result and result.get("success") and settings.AUDIT_CACHE_ENABLED:
+        _cache.set(url, enable_ai, result)
+
+    return result

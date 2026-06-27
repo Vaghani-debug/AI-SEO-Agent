@@ -14,8 +14,9 @@ See app/agents/workflow.py for the full pipeline.
 
 import time
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
+from app.config import settings
 from app.utils.helpers import normalize_url
 from app.utils.logger import logger
 
@@ -46,12 +47,12 @@ def crawl_page(url: str) -> dict:
         Exception: Any navigation failure; browser resources are cleaned
                    up before re-raising.
     """
-    url = normalize_url(url)       # ensure scheme is present
+    url        = normalize_url(url)       # ensure scheme is present
     start_time = time.time()
 
     # Start Playwright outside a context manager so the caller controls shutdown
-    pw = sync_playwright().start()
-
+    pw     = sync_playwright().start()
+    browser = None
     try:
         # Headless Chromium is the most SEO-representative browser choice
         browser = pw.chromium.launch(headless=True)
@@ -66,11 +67,33 @@ def crawl_page(url: str) -> dict:
             ),
         )
 
-        page = context.new_page()
-        page.set_default_timeout(30000)  # cap all DOM operations at 30 s
+        page     = None
+        response = None
 
-        # Navigate and wait until the initial DOM is parsed (not full load)
-        response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        for attempt in range(settings.CRAWLER_MAX_ATTEMPTS):
+            page = context.new_page()
+            page.set_default_timeout(settings.CRAWLER_TIMEOUT_MS)
+            try:
+                response = page.goto(
+                    url,
+                    wait_until="domcontentloaded",
+                    timeout=settings.CRAWLER_TIMEOUT_MS,
+                )
+                break  # navigation succeeded — keep this page
+            except PlaywrightTimeoutError:
+                logger.warning(
+                    f"Navigation timeout "
+                    f"(attempt {attempt + 1}/{settings.CRAWLER_MAX_ATTEMPTS}): {url}"
+                )
+                try:
+                    page.close()
+                except Exception:
+                    pass
+                page = None
+                if attempt < settings.CRAWLER_MAX_ATTEMPTS - 1:
+                    time.sleep(min(2 ** attempt, 8))  # 1 s, 2 s, … capped at 8 s
+                else:
+                    raise  # all attempts exhausted
 
         status_code      = response.status if response else None
         response_headers = dict(response.headers) if response else {}
@@ -90,7 +113,12 @@ def crawl_page(url: str) -> dict:
         }
 
     except Exception:
-        # Release browser resources before propagating so nothing leaks
+        # Release all browser resources before propagating so nothing leaks
+        if browser:
+            try:
+                browser.close()
+            except Exception:
+                pass
         try:
             pw.stop()
         except Exception:
